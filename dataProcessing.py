@@ -1,4 +1,3 @@
-import pandas as pd
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.ml.feature import HashingTF, IDF
@@ -89,7 +88,7 @@ def prepareDatasets():
     test_data = process_data(test_data, text_columns, clean_text_columns, tokens_columns, raw_features_columns, features_columns)
     validation_data = process_data(validation_data, text_columns, clean_text_columns, tokens_columns, raw_features_columns, features_columns)
 
-def uploadToCloud(train_data_json, test_data_json, validation_data_json):
+def uploadToCloud(train_data, test_data, validation_data):
     # Convert dataframes to json
     train_data_json = train_data.toJSON().saveAsTextFile("train_data_preprocessed")
     test_data_json = test_data.toJSON().collect()
