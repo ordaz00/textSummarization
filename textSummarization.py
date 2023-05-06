@@ -72,8 +72,30 @@ model.fit([input_sequences, target_sequences], target_sequences, batch_size=64, 
 
 # Evaluate the model on validation dataset
 validation_loss, validation_accuracy = model.evaluate([validation_input_sequences, validation_target_sequences], validation_target_sequences, batch_size=64)
-print(f'Validation loss: {validation_loss}, Validation accuracy: {validation_accuracy}')
+
+# Save validation results to a file
+validation_results_file = "model_validation.txt"
+with open(validation_results_file, 'w') as v:
+    v.write(f"Loss: {validation_loss}\n")
+    v.write(f"Accuracy: {validation_accuracy}\n")
 
 # Evaluate the model on test dataset
 test_loss, test_accuracy = model.evaluate([test_input_sequences, test_target_sequences], test_target_sequences, batch_size=64)
-print(f'Test loss: {test_loss}, Test accuracy: {test_accuracy}')
+
+# Save evaluation results to a file
+test_results_file = "model_test.txt"
+with open(test_results_file, 'w') as t:
+    t.write(f"Loss: {test_loss}\n")
+    t.write(f"Accuracy: {test_accuracy}\n")
+
+# Save the model as an H5 file
+model.save("trained_model.h5")
+
+# Upload validation, test, and model files to Google Cloud
+store_validation_data = bucket.blob("model_validation.txt")
+store_test_data = bucket.blob("model_test.txt")
+store_model = bucket.blob("trained_model.h5")
+
+store_validation_data.upload_from_filename("model_validation.txt")
+store_test_data.upload_from_filename("model_test.txt")
+store_model.upload_from_filename("trained_model.h5")
