@@ -19,12 +19,23 @@ spark = SparkSession.builder \
     .config("spark.cleaner.referenceTracking.blockingFraction", "0.5") \
     .getOrCreate()
 
+def read_directory_from_cloud_to_pyspark_df(bucket_name, directory_name):
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blobs = bucket.list_blobs(prefix=directory_name)
+    
+    files_contents = []
+    
+    for blob in blobs:
+        if not blob.name.endswith('/'):  # Exclude directories
+            file_content = blob.download_as_text()
+            file_json = [json.loads(line) for line in file_content.split('\n') if line]
+            files_contents.extend(file_json)
+    
+    return spark.createDataFrame(files_contents)
+
 # Load training data from Google Cloud Storage as a DataFrame
-train_blob_name = "preprocessed_training.json"
-train_data_blob = bucket.blob(train_blob_name)
-train_data_json = train_data_blob.download_as_text()
-train_data_list = [json.loads(line) for line in train_data_json.split('\n') if line]
-train_data = spark.createDataFrame(train_data_list)
+train_data = read_directory_from_cloud_to_pyspark_df(bucket, "train_data_preprocessed")
 
 # Load validation data from Google Cloud Storage as a DataFrame
 validation_blob_name = "preprocessed_validation.json"
