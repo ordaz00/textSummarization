@@ -3,6 +3,12 @@ from pyspark.sql import functions as F
 from pyspark.ml.feature import HashingTF, IDF
 from google.cloud import storage
 import os
+import shutil
+
+# Remove Output directory if it exists to prevent errors
+output_directory = "train_data_preprocessed"
+if os.path.exists(output_directory):
+    shutil.rmtree(output_directory)
 
 # Correcting the python versions
 os.environ["PYSPARK_PYTHON"] = "/Users/ordaz00/miniconda3/envs/pyspark_env/bin/python"
@@ -88,12 +94,32 @@ def prepareDatasets():
     test_data = process_data(test_data, text_columns, clean_text_columns, tokens_columns, raw_features_columns, features_columns)
     validation_data = process_data(validation_data, text_columns, clean_text_columns, tokens_columns, raw_features_columns, features_columns)
 
+    return train_data, test_data, validation_data
+
+def upload_directory(bucket_name, directory_path, destination_directory):
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+
+    for root, _, files in os.walk(directory_path):
+        for file in files:
+            file_path = os.path.join(root, file)
+            destination_blob_name = os.path.join(destination_directory, os.path.relpath(file_path, directory_path))
+            
+            blob = bucket.blob(destination_blob_name)
+            with open(file_path, 'rb') as f:
+                blob.upload_from_file(f)
+            print(f"File {file_path} uploaded to {destination_blob_name}.")
+
+
 def uploadToCloud(train_data, test_data, validation_data):
     # Convert dataframes to json
-    train_data_json = train_data.toJSON().saveAsTextFile("train_data_preprocessed")
+    train_data.toJSON().saveAsTextFile("train_data_preprocessed")
     test_data_json = test_data.toJSON().collect()
     validation_data_json = validation_data.toJSON().collect()
     # Upload the JSON strings to Google Cloud Storage
-    upload_json_string(bucket_name, "train_data_preprocessed", train_blob_name)
+    upload_directory(bucket_name, "train_data_preprocessed", "train_data_preprocessed")
     upload_json_string(bucket_name, test_data_json, test_blob_name)
     upload_json_string(bucket_name, validation_data_json, validation_blob_name)
+
+train_data_processed, test_data_processed, validation_data_processed = prepareDatasets()
+uploadToCloud(train_data_processed, test_data_processed, validation_data_processed)
