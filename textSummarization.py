@@ -20,6 +20,16 @@ spark = SparkSession.builder \
     .config("spark.cleaner.referenceTracking.blockingFraction", "0.5") \
     .getOrCreate()
 
+# Check if GPU is available and allocate it
+if tf.config.list_physical_devices("GPU"):
+    physical_devices = tf.config.list_physical_devices('GPU')
+    try:
+        tf.config.experimental.set_memory_growth(physical_devices[0], True)
+    except RuntimeError as e:
+        print(e)
+else:
+    print("No GPU available. Using CPU instead.")
+
 class StreamJSONDecoder(JSONDecoder):
     def decode(self, s, _w=None):
         objs, end = self.raw_decode(s, 0)

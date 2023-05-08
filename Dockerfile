@@ -1,14 +1,20 @@
-FROM python:3.9
+# Use the official NVIDIA CUDA image as the base image
+FROM nvidia/cuda:11.2.2-cudnn8-runtime-ubuntu20.04
+
+# Install Python 3.9 and other dependencies
+RUN apt-get update && \
+    apt-get install -y python3.9 python3-pip openjdk-11-jdk && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Update pip
+RUN python3.9 -m pip install --upgrade pip
 
 # Install necessary dependencies
-RUN pip install tensorflow google-cloud-storage pyspark
+RUN python3.9 -m pip install tensorflow-gpu==2.6.0 google-cloud-storage pyspark
 
 # Set the working directory
 WORKDIR /app
-
-# Install Java
-RUN apt-get update && \
-    apt-get install -y openjdk-11-jdk
 
 # Set JAVA_HOME environment variable
 ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-amd64/
@@ -21,4 +27,4 @@ COPY ornate-woodland-384921-a68699295d78.json /app/ornate-woodland-384921-a68699
 ENV GOOGLE_APPLICATION_CREDENTIALS=/app/ornate-woodland-384921-a68699295d78.json
 
 # Run the script
-CMD ["python", "textSummarization.py"]
+CMD ["python3.9", "textSummarization.py"]
