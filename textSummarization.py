@@ -3,6 +3,7 @@ from google.cloud import storage
 import json
 import numpy as np
 from pyspark.sql import SparkSession
+from json import JSONDecoder
 
 # Set up Google Cloud Storage client
 JSON_KEYFILE_PATH = 'ornate-woodland-384921-a68699295d78.json'
@@ -19,20 +20,54 @@ spark = SparkSession.builder \
     .config("spark.cleaner.referenceTracking.blockingFraction", "0.5") \
     .getOrCreate()
 
-def read_directory_from_cloud_to_pyspark_df(bucket_name, directory_name):
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(bucket_name)
+class StreamJSONDecoder(JSONDecoder):
+    def decode(self, s, _w=None):
+        objs, end = self.raw_decode(s, 0)
+        objs = [objs]  # Initialize objs as a list
+        while end < len(s):
+            next_obj, end = self.raw_decode(s, end)
+            objs.append(next_obj)
+        return objs
+
+def read_directory_from_cloud_to_pyspark_df(bucket, directory_name):
     blobs = bucket.list_blobs(prefix=directory_name)
     
-    files_contents = []
+    json_contents = []
     
     for blob in blobs:
-        if not blob.name.endswith('/'):  # Exclude directories
-            file_content = blob.download_as_text()
-            file_json = [json.loads(line) for line in file_content.split('\n') if line]
-            files_contents.extend(file_json)
-    
-    return spark.createDataFrame(files_contents)
+        file_name = blob.name.split('/')[-1]
+        print(f"File name: {file_name}")
+        if not (file_name.startswith('.') or file_name.startswith('_')):
+            print("Entered")
+            try:
+                file_content = blob.download_as_text()
+                cleaned_content = ""
+                for line in file_content.splitlines():
+                    line = line.strip()
+                    cleaned_content += line
+
+                # Decode the JSON objects using a streaming approach
+                decoder = StreamJSONDecoder()
+                json_objects = decoder.decode(cleaned_content)
+
+                for json_object in json_objects:
+                    try:
+                        json_contents.append(json_object)
+                    except json.JSONDecodeError as e:
+                        print(f"Skipping non-JSON content in {blob.name}")
+                        error_message = str(e)
+                        print(f"Error message: {error_message[:100]}...")  # Truncate error message
+                        print(f"Problematic content (first 300 characters): {json_object[:300]}...")
+
+            except UnicodeDecodeError:
+                print(f"Skipping non-text content in {blob.name}")
+        else:
+            print("Skipped")
+
+    # Create an RDD of JSON objects instead of a single JSON string
+    json_rdd = spark.sparkContext.parallelize(json_contents)
+    json_data_df = spark.read.json(json_rdd)
+    return json_data_df
 
 # Load training data from Google Cloud Storage as a DataFrame
 train_data = read_directory_from_cloud_to_pyspark_df(bucket, "train_data_preprocessed")
